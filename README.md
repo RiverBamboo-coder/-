@@ -1,15 +1,15 @@
 # bri-pm · “一带一路”沿线国家基础设施合作项目管理信息系统
 
 > 《数据库原理》三级项目 · 四人共用的单个 Maven 工程
-> 当前进度：**A-1 工程骨架**、**A-2 公共类** 已完成（第 1 周交付物），其余按各自章节推进。
+> 当前进度：**A-1 工程骨架**、**A-2 公共类**、**A-3 建表脚本** 已完成，其余按各自章节推进。
 
 | 编号 | 交付物 | 负责人 | 状态 |
 | --- | --- | --- | --- |
 | A-1 | Maven 工程 + pom.xml + 目录结构 + db.properties | A | ✅ 已完成 |
 | A-2 | 公共类 DbUtil / Result / Page / TextUtil | A | ✅ 已完成 |
-| A-3 | `sql/01_schema.sql`（14 张表 + 约束 + 索引） | A | ⏳ 第 2 周（下一步） |
+| A-3 | `sql/01_schema.sql`（24 张表 + 约束 + 索引，含 M5 生成列） | A | ✅ 已完成 |
 | A-4 / A-5 | ER 图 / 范式论证表 | A | ⏳ 第 2 周 |
-| A-6 / A-7 | 02 字典与用户、03 基础数据脚本 | A | ⏳ 第 2–3 周 |
+| A-6 / A-7 | 02 字典与用户、03 基础数据脚本 | A | ⏳ 第 2–3 周（下一步） |
 | A-8 | M1–M3 的 DAO | A | ⏳ 第 4 周 |
 | B / C / D | 资金线、进度与承诺比对、界面 | B / C / D | ⏳ 各自章节 |
 
@@ -216,9 +216,12 @@ ps.setString(1, TextUtil.containsLike(keyword));    // keyword 为空时返回 n
 
 ## 8. A 的下一步（按第 1 章交付物清单）
 
-1. **A-3** `sql/01_schema.sql`：按 14 张表的依赖顺序写 DDL（`t_region → t_country → t_dict_* → t_user →
-   t_enterprise → t_consortium → t_consortium_member → t_project → t_contract → t_project_status_log →
-   t_project_participant → t_funding_source → t_milestone → t_project_outcome`），含主键/外键/唯一/检查约束与索引；
-2. **A-4 / A-5**：ER 图（含 M3 的 M:N 带属性与“企业—联合体”递归联系）与范式论证表；
-3. **A-6 / A-7**：`02_dict_and_user.sql`（字典 ≥40 条）、`03_seed_basic.sql`（60 国 / 35 企业 / 40 项目 / 80 合同 / 100 参与记录）；
-4. **A-8**：M1–M3 的 DAO，每个方法控制台验证。
+1. **A-3 ✅ 已完成**：`sql/01_schema.sql` 建了 24 张表（A 的 12 张 + B 的 7 张 + C 的 5 张），
+   含主键/外键/唯一/检查约束与索引，M5 的 `is_delayed` 为生成列；
+2. **A-6**：`02_dict_and_user.sql`（字典 ≥40 条：领域 6 / 模式 5 / 币种 4 / 企业性质 5 / 项目状态 5 / 角色 5，另加用户）；
+3. **A-7**：`03_seed_basic.sql`（60 国 / 35 企业 / 40 项目 / 80 合同 / 100 参与记录 / 5 联合体）；
+4. **A-4 / A-5**：ER 图（含 M3 的 M:N 带属性与“企业—联合体”递归联系）与范式论证表；
+5. **A-8**：M1–M3 的 DAO，每个方法控制台验证。
+6. **B / C 要补的**：`04_seed_business.sql`（各自段落）、`05_views_fund.sql`、`06_views_commitment.sql`。
+
+> 顺序建议：先 A-6（半天，能立刻让 D 的下拉框有数据）→ A-7（数据量是“数据 30 分”的底座）→ A-8（DAO）→ 最后 A-4/A-5 文档（表一冻结，图画起来才有意义）。
