@@ -1,16 +1,17 @@
 # bri-pm · “一带一路”沿线国家基础设施合作项目管理信息系统
 
 > 《数据库原理》三级项目 · 四人共用的单个 Maven 工程
-> 当前进度：**A-1 工程骨架**、**A-2 公共类**、**A-3 建表脚本** 已完成，其余按各自章节推进。
+> 当前进度：**A 的 9 个交付物全部完成**（A-1～A-9），B/C/D 按各自章节推进。
 
 | 编号 | 交付物 | 负责人 | 状态 |
 | --- | --- | --- | --- |
 | A-1 | Maven 工程 + pom.xml + 目录结构 + db.properties | A | ✅ 已完成 |
 | A-2 | 公共类 DbUtil / Result / Page / TextUtil | A | ✅ 已完成 |
 | A-3 | `sql/01_schema.sql`（24 张表 + 约束 + 索引，含 M5 生成列） | A | ✅ 已完成 |
-| A-4 / A-5 | ER 图 / 范式论证表 | A | ⏳ 第 2 周 |
-| A-6 / A-7 | 02 字典与用户、03 基础数据脚本 | A | ⏳ 第 2–3 周（下一步） |
-| A-8 | M1–M3 的 DAO | A | ⏳ 第 4 周 |
+| A-4 / A-5 | ER 图（Mermaid，可导出 PNG）+ 关系模式 + 范式论证表 | A | ✅ 已完成（`docs/`） |
+| A-6 / A-7 | `02_dict_and_user.sql`（10 类 46 条字典 + 5 用户）、`03_seed_basic.sql`（61 国 / 35 企业 / 40 项目 / 80 合同 / 100 参与记录） | A | ✅ 已完成 |
+| A-8 | M1–M3 的 DAO：CountryDao / ProjectDao / EnterpriseDao / ContractDao / DictDao + 14 个 VO | A | ✅ 已完成 |
+| A-9 | X4 数据字典：MetaDao（表/字段/约束元数据） | A | ✅ 已完成 |
 | B / C / D | 资金线、进度与承诺比对、界面 | B / C / D | ⏳ 各自章节 |
 
 技术栈：**MySQL 8.0 + Java（JDK 17）+ Swing，JDBC 直连，不用 Spring**。
@@ -32,14 +33,18 @@ bri-pm/
 ├── pom.xml                          # A：统一依赖（mysql-connector-java 8.0.33 + junit 4.13.2）
 ├── README.md                        # 本文件
 ├── .gitignore
-├── sql/                             # 建库 / 种子 / 验收脚本（A-3 起逐步提交）
+├── docs/                            # A-4 / A-5 文档（Mermaid 图 + 范式论证表）
+├── sql/                             # 建库 / 种子 / 验收脚本
+│   ├── 01_schema.sql                # 24 张表
+│   ├── 02_dict_and_user.sql         # 字典 + 演示用户
+│   ├── 03_seed_basic.sql            # 基础数据
 │   └── README.md                    # 脚本清单、执行顺序、写脚本的硬性要求
 └── src/
     ├── main/
     │   ├── java/com/bri/
     │   │   ├── common/              # A：DbUtil、Result、Page、TextUtil、DataAccessException
-    │   │   ├── dao/                 # A/B/C：一人一组 DAO，类名不重名
-    │   │   ├── vo/                  # A/B/C：与 DAO 一一对应的返回行对象
+    │   │   ├── dao/                 # A：CountryDao / ProjectDao / EnterpriseDao / ContractDao / DictDao / MetaDao
+    │   │   ├── vo/                  # A：14 个返回对象（CountryVO、ProjectVO、StatRow…）
     │   │   ├── service/             # 可选：跨 DAO 的业务计算
     │   │   ├── modA/                # A：自测面板（保留位，可空）
     │   │   └── ui/                  # D：MainFrame、9 个业务面板、看板、通用组件
@@ -180,6 +185,55 @@ String sql = "SELECT project_id, project_name FROM t_project WHERE project_name 
 ps.setString(1, TextUtil.containsLike(keyword));    // keyword 为空时返回 null
 ```
 
+### 4.5 DAO 速查（A-8 / A-9，D 直接调用）
+
+```java
+// M1 国家
+CountryDao countryDao = new CountryDao();
+List<CountryVO> list = countryDao.findAll(Page.of(1, 20));   // 分页 + 白名单排序
+List<CountryVO> asia = countryDao.findByRegion(1);            // 传大洲或区域 ID 都能查
+List<StatRow> byContinent = countryDao.statProjectsByRegion();   // Q1-1
+List<CountryVO> noProject = countryDao.findCountriesWithoutProject(); // Q1-2
+List<StatRow> coverage = countryDao.statRegionCoverage();        // Q1-3（cnt/covered/pct）
+
+// M2 项目
+ProjectDao projectDao = new ProjectDao();
+ProjectQuery q = new ProjectQuery();
+q.setCountryCode("IDN"); q.setFieldCode("TRANS"); q.setStatus("在建");
+List<ProjectVO> page1 = projectDao.findByCondition(q, Page.of(1, 20, "invest_amount DESC"));
+long total = projectDao.count(q);
+ProjectVO detail = projectDao.findById(1L);
+Result<Long> r = projectDao.insert(vo);       // 失败时 r.getMessage() 就是中文提示
+List<StatRow> cross = projectDao.statByFieldAndStatus();   // Q2-1（code="TRANS|在建"）
+List<GapRow> gaps = projectDao.findContractGapProjects();  // Q2-2（示例数据里有 5 个不一致）
+List<ContractVO> contracts = new ContractDao().findByProject(1L);
+
+// M3 企业
+EnterpriseDao enterpriseDao = new EnterpriseDao();
+List<EnterpriseVO> ents = enterpriseDao.findAll(Page.of(1, 50, "project_count DESC"));
+List<ProjectRoleVO> roles = enterpriseDao.findProjectsByEnterprise(1L);
+List<RankRow> top = enterpriseDao.statEnterpriseRanking(10);   // Q3-1
+List<ShareRow> shares = enterpriseDao.statConsortiumShare();    // Q3-4
+
+// M0 字典（下拉框）
+List<DictItem> statuses = new DictDao().listByType("PROJECT_STATUS");
+
+// X4 数据字典
+MetaDao metaDao = new MetaDao();
+List<MetaTableVO> tables = metaDao.listTables();                  // 24 张
+List<MetaColumnVO> cols = metaDao.listColumns("t_project");
+List<MetaConstraintVO> cons = metaDao.listConstraints("t_project_participant");
+```
+
+**异常约定**：查询方法抛 `DataAccessException`（中文 message），写入方法返回 `Result`；界面统一 `catch (DataAccessException e) { MessageUtil.error(this, e.getMessage()); }` 即可，不需要自己翻译错误码。
+
+**控制台自检**：`com.bri.dao.DaoSmokeTest` 的 `main` 会把每个方法跑一遍并打印行数与首行样例，跑通即证明 A-8/A-9 可用：
+
+```text
+在 IDEA 里右键 DaoSmokeTest → Run 'DaoSmokeTest.main()'（classpath 已含 MySQL 驱动）
+或先 mvn -q clean compile 确认能编译，再在 IDE 里运行
+```
+
 ## 5. 全组约定（合并前必须遵守）
 
 1. 包名统一 `com.bri`，不新建 `com.aaa` / `test` / `myproj`；
@@ -214,14 +268,22 @@ ps.setString(1, TextUtil.containsLike(keyword));    // keyword 为空时返回 n
 | `数据库配置不可用：classpath 下没有找到 db.properties` | 配置文件没在 `src/main/resources` 下 | 移到该目录后 `mvn clean` 重新构建 |
 | 命令行执行 SQL 报 `source` 找不到文件 | Windows 路径 | 用正斜杠，例如 `source D:/数据库三级项目/bri-pm/sql/01_schema.sql` |
 
-## 8. A 的下一步（按第 1 章交付物清单）
+## 8. A 的交付清单与验证方式
 
-1. **A-3 ✅ 已完成**：`sql/01_schema.sql` 建了 24 张表（A 的 12 张 + B 的 7 张 + C 的 5 张），
-   含主键/外键/唯一/检查约束与索引，M5 的 `is_delayed` 为生成列；
-2. **A-6**：`02_dict_and_user.sql`（字典 ≥40 条：领域 6 / 模式 5 / 币种 4 / 企业性质 5 / 项目状态 5 / 角色 5，另加用户）；
-3. **A-7**：`03_seed_basic.sql`（60 国 / 35 企业 / 40 项目 / 80 合同 / 100 参与记录 / 5 联合体）；
-4. **A-4 / A-5**：ER 图（含 M3 的 M:N 带属性与“企业—联合体”递归联系）与范式论证表；
-5. **A-8**：M1–M3 的 DAO，每个方法控制台验证。
-6. **B / C 要补的**：`04_seed_business.sql`（各自段落）、`05_views_fund.sql`、`06_views_commitment.sql`。
+A 的 9 个交付物已全部完成，逐项对应：
 
-> 顺序建议：先 A-6（半天，能立刻让 D 的下拉框有数据）→ A-7（数据量是“数据 30 分”的底座）→ A-8（DAO）→ 最后 A-4/A-5 文档（表一冻结，图画起来才有意义）。
+| 编号 | 交付物 | 验证方式 | 预期结果 |
+| --- | --- | --- | --- |
+| A-1 | `pom.xml` + 目录 + `db.properties` | `mvn clean test` | `BUILD SUCCESS` |
+| A-2 | `common/`（DbUtil/Result/Page/TextUtil/DataAccessException） | `mvn clean test`（4 个测试类） | 全部用例通过 |
+| A-3 | `sql/01_schema.sql` | 执行脚本后 `SHOW TABLES` | **24 张表**，`SHOW CREATE TABLE` 约束齐全 |
+| A-4 | `docs/A4-ER图与关系模式.md` | GitHub 预览 / mermaid.live 导出 PNG | ER 图 + 24 行关系模式 |
+| A-5 | `docs/A5-范式论证表.md` | 阅读并对照 `SHOW CREATE TABLE` | 24 表逐表范式结论 |
+| A-6 | `sql/02_dict_and_user.sql` | `SELECT COUNT(*) FROM t_dict_type / t_dict_item / t_user` | **10 / 46 / 5** |
+| A-7 | `sql/03_seed_basic.sql` | `SELECT COUNT(*) FROM t_country / t_enterprise / t_project / t_contract / t_project_participant` | **61 / 35 / 40 / 80 / 100** |
+| A-8 | `dao/` 5 个 DAO + `vo/` 14 个 VO | 运行 `DaoSmokeTest.main` | 每个方法打印行数，与 §4.5 注释一致 |
+| A-9 | `dao/MetaDao` | `DaoSmokeTest` 的 X4 段 | 表 24 张、`t_project_participant` 6 个字段、6 个约束（1 主键 + 3 外键 + 2 检查） |
+
+**B / C 要补的**：`04_seed_business.sql`（各自段落）、`05_views_fund.sql`、`06_views_commitment.sql`。
+
+> 全组底座已就位：D 可以把假数据换成真数据（§4.5 的 DAO），B/C 可以对着 `01_schema.sql` + `03_seed_basic.sql` 写 DAO 与视图。

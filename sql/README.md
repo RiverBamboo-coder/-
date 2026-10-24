@@ -5,8 +5,8 @@
 | 脚本 | 内容 | 负责人 | 状态 |
 | --- | --- | --- | --- |
 | `01_schema.sql` | 建库 + **24 张表** + 主键/外键/唯一/检查约束 + 索引（含 M5 生成列） | A | ✅ 已提交（第 2 周，G1 闸口） |
-| `02_dict_and_user.sql` | 字典（≥40 条）与用户初始数据 | A | 待提交 |
-| `03_seed_basic.sql` | 区域/国家/企业/项目/合同/参与关系 | A | 待提交 |
+| `02_dict_and_user.sql` | 字典 10 类 46 条 + 5 个演示用户（口令 SHA-256） | A | ✅ 已提交 |
+| `03_seed_basic.sql` | 区域 21 / 国家 61 / 企业 35 / 联合体 5 + 成员 14 / 项目 40 / 合同 80 / 参与记录 100 / 状态轨迹 101 | A | ✅ 已提交 |
 | `04_seed_business.sql` | 资金/预警（B 段）+ 里程碑/承诺/成效（C 段） | B、C | 待提交 |
 | `05_views_fund.sql` | 视图 `v_fund_rate`、`v_fund_progress` | B | 待提交 |
 | `06_views_commitment.sql` | 视图 `v_commitment_actual` | C | 待提交 |
@@ -36,6 +36,8 @@
 ```text
 01_schema.sql → 02_dict_and_user.sql → 03_seed_basic.sql → 04_seed_business.sql → 05_views_fund.sql → 06_views_commitment.sql → 99_verify.sql
 ```
+
+三个初始化脚本都可重复执行（先删后插），演示用户见 `02_dict_and_user.sql` 末尾：`admin / planner / fund / field / viewer`，口令统一 `123456`。
 
 ## 4. 建库（库名必须与 `db.properties` 一致）
 
