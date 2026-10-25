@@ -12,6 +12,7 @@
 | A-6 / A-7 | `02_dict_and_user.sql`（10 类 46 条字典 + 5 用户）、`03_seed_basic.sql`（61 国 / 35 企业 / 40 项目 / 80 合同 / 100 参与记录） | A | ✅ 已完成 |
 | A-8 | M1–M3 的 DAO：CountryDao / ProjectDao / EnterpriseDao / ContractDao / DictDao + 14 个 VO | A | ✅ 已完成 |
 | A-9 | X4 数据字典：MetaDao（表/字段/约束元数据） | A | ✅ 已完成 |
+| B-1 ~ B-7 | 资金线：7 张表并入 01、04 种子、05 视图、7 个 DAO + 15 个 VO + 自检 | B | ✅ 已合并（A 并入本仓库） |
 | B / C / D | 资金线、进度与承诺比对、界面 | B / C / D | ⏳ 各自章节 |
 
 技术栈：**MySQL 8.0 + Java（JDK 17）+ Swing，JDBC 直连，不用 Spring**。
@@ -33,11 +34,14 @@ bri-pm/
 ├── pom.xml                          # A：统一依赖（mysql-connector-java 8.0.33 + junit 4.13.2）
 ├── README.md                        # 本文件
 ├── .gitignore
-├── docs/                            # A-4 / A-5 文档（Mermaid 图 + 范式论证表）
-├── sql/                             # 建库 / 种子 / 验收脚本
-│   ├── 01_schema.sql                # 24 张表
+├── docs/                            # A-4 / A-5 文档（Mermaid 图 + 范式论证表）+ B 的 B-1 / B-7
+├── sql/
+│   ├── 01_schema.sql                # 24 张表（含 B 的 M4/M6/M8 七张，按 B 的字段定义并入）
 │   ├── 02_dict_and_user.sql         # 字典 + 演示用户
-│   ├── 03_seed_basic.sql            # 基础数据
+│   ├── 03_seed_basic.sql            # A 的基础数据
+│   ├── 04_seed_business.sql         # B 的资金/报告/预警种子（C 段追加在文件末尾）
+│   ├── 05_views_fund.sql            # B：v_fund_rate / v_fund_progress
+│   ├── 99_verify_b.sql              # B：验收自检 SQL
 │   └── README.md                    # 脚本清单、执行顺序、写脚本的硬性要求
 └── src/
     ├── main/
@@ -226,6 +230,32 @@ List<MetaConstraintVO> cons = metaDao.listConstraints("t_project_participant");
 ```
 
 **异常约定**：查询方法抛 `DataAccessException`（中文 message），写入方法返回 `Result`；界面统一 `catch (DataAccessException e) { MessageUtil.error(this, e.getMessage()); }` 即可，不需要自己翻译错误码。
+
+### 4.6 B 段 DAO 速查（资金线 M4 / M6 / M8，已并入）
+
+```java
+FundDao fundDao = new FundDao();
+List<FundPlanVO> plans = fundDao.findPlansByProject(1L);          // 年度计划
+List<DisbVO> disb = fundDao.findDisbByProject(1L, Page.of(1, 20)); // 拨付流水（分页）
+fundDao.insertDisbursement(vo);                                    // Result<Long>
+List<RateRow> rates = fundDao.statFundRateByProject();             // Q4-1 到位率
+List<RateRow> low = fundDao.findLowRateProjects(60);               // Q4-2
+List<SourceRow> bySource = fundDao.statBySource();                 // Q4-3 来源占比
+List<YearRow> byYear = fundDao.statYearPlanVsActual();             // Q4-4 年度对比
+List<OverrunRow> over = fundDao.findOverrunProjects(0);            // Q4-5 超计划
+
+ReportDao reportDao = new ReportDao();
+reportDao.insertReport(vo);                                        // 同项目同月会返回中文“已报过”
+List<MoMRow> mom = reportDao.statMonthlyMoM(1L);                   // Q6-1 环比（LAG）
+List<OutRow> out = reportDao.statOutputByCountry();                // Q6-2
+List<StagnantRow> st = reportDao.findStagnantProjects(3);          // Q6-3
+List<HireRow> hire = reportDao.findLowLocalHireRate(50);           // Q6-4
+
+WarningDao warningDao = new WarningDao();
+int n = warningDao.refreshWarnings();                              // 幂等刷新，返回命中条数
+List<WarningVO> red = warningDao.findByLevel("R", Page.of(1, 50));  // 红/黄/蓝
+warningDao.ackWarning(id, "admin");                                // 标记处理
+```
 
 **控制台自检**：`com.bri.dao.DaoSmokeTest` 的 `main` 会把每个方法跑一遍并打印行数与首行样例，跑通即证明 A-8/A-9 可用：
 

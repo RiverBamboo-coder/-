@@ -106,12 +106,13 @@ INSERT INTO t_dict_item (dict_type_id, item_code, item_name, sort_no, enabled) V
 (7, '监理', '监理合同', 4, 1);
 
 -- 2.8 资金来源类型 FUND_SOURCE_TYPE（5，存中文）
+--     与 B 段 t_funding_source.source_type 的取值、以及 01_schema.sql 的 ck_source_type 完全一致
 INSERT INTO t_dict_item (dict_type_id, item_code, item_name, sort_no, enabled) VALUES
-(8, '政策性银行', '政策性银行（国开行/进出口行）', 1, 1),
-(8, '多边机构',   '多边开发机构（亚投行/世行）',   2, 1),
-(8, '专项基金',   '专项基金（丝路基金）',         3, 1),
-(8, '东道国财政', '东道国财政资金',               4, 1),
-(8, '企业自筹',   '企业自筹资金',                 5, 1);
+(8, '政府援助',   '政府援助（无偿援助/成套项目）', 1, 1),
+(8, '政策性银行', '政策性银行（国开行/进出口行）', 2, 1),
+(8, '商业贷款',   '商业贷款（商业银行项目贷款）',   3, 1),
+(8, '企业自筹',   '企业自筹资金',                 4, 1),
+(8, '多边机构',   '多边开发机构（世行/亚投行）',   5, 1);
 
 -- 2.9 承诺类型 COMMIT_TYPE（4，存中文）
 INSERT INTO t_dict_item (dict_type_id, item_code, item_name, sort_no, enabled) VALUES
@@ -120,11 +121,12 @@ INSERT INTO t_dict_item (dict_type_id, item_code, item_name, sort_no, enabled) V
 (9, '属地用工', '属地用工比例（%）',   3, 1),
 (9, '培训',     '培训承诺（人次）',     4, 1);
 
--- 2.10 预警级别 WARNING_LEVEL（3，存英文码）
+-- 2.10 预警级别 WARNING_LEVEL（3，存单字母码）
+--     与 B 段 t_warning_rule.level_code / t_warning.warn_level 的取值（R/Y/B）一致
 INSERT INTO t_dict_item (dict_type_id, item_code, item_name, sort_no, enabled) VALUES
-(10, 'RED',    '红灯（严重）', 1, 1),
-(10, 'YELLOW', '黄灯（关注）', 2, 1),
-(10, 'BLUE',   '蓝灯（提示）', 3, 1);
+(10, 'R', '红灯（严重）', 1, 1),
+(10, 'Y', '黄灯（关注）', 2, 1),
+(10, 'B', '蓝灯（提示）', 3, 1);
 
 -- ---------------------------------------------------------------------
 -- 3. 演示用户（5 个，口令统一 123456）

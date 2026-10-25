@@ -313,47 +313,51 @@ CREATE TABLE t_project_participant (
 
 -- 13. 资金来源：政策性银行 / 多边机构 / 专项基金 / 东道国财政 / 企业自筹
 CREATE TABLE t_funding_source (
-    source_id    INT          NOT NULL AUTO_INCREMENT COMMENT '来源主键',
-    source_code  VARCHAR(20)  NOT NULL COMMENT '来源编码：CDB/EXIM/AIIB/SRF/HOST/OWNER',
-    source_name  VARCHAR(100) NOT NULL COMMENT '来源名称',
-    source_type  VARCHAR(20)  NOT NULL COMMENT '类型：政策性银行/多边机构/专项基金/东道国财政/企业自筹',
-    country_code CHAR(3)      NULL     COMMENT '机构所属国别，可为空',
-    remark       VARCHAR(200) NULL     COMMENT '备注',
+    source_id     BIGINT       NOT NULL AUTO_INCREMENT COMMENT '资金来源主键',
+    source_code   VARCHAR(20)  NOT NULL                COMMENT '来源编码，如 SRC01',
+    source_name   VARCHAR(60)  NOT NULL                COMMENT '来源名称，如 中国进出口银行',
+    source_type   VARCHAR(20)  NOT NULL                COMMENT '政府援助/政策性银行/商业贷款/企业自筹/多边机构',
+    country_code  CHAR(3)      NULL                    COMMENT '资金提供方所属国家（多边机构可空）',
+    institution   VARCHAR(100) NULL                    COMMENT '具体机构/部门',
+    remark        VARCHAR(200) NULL                    COMMENT '备注',
+    created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
     PRIMARY KEY (source_id),
     UNIQUE KEY uk_source_code (source_code),
-    KEY idx_source_type (source_type),
     KEY idx_source_country (country_code),
     CONSTRAINT fk_source_country FOREIGN KEY (country_code) REFERENCES t_country (country_code)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT ck_source_type CHECK (source_type IN ('政策性银行', '多边机构', '专项基金', '东道国财政', '企业自筹'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='资金来源：资金来源占比统计（Q4-3）的维表';
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT ck_source_type CHECK (source_type IN ('政府援助', '政策性银行', '商业贷款', '企业自筹', '多边机构'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='资金来源（M4）：Q4-3 来源占比的维表';
 
 -- 14. 年度资金计划：一个项目一年一条（UNIQUE 保证；upsertPlan 依赖它）
 CREATE TABLE t_fund_plan (
     plan_id       BIGINT        NOT NULL AUTO_INCREMENT COMMENT '计划主键',
-    project_id    BIGINT        NOT NULL COMMENT '项目',
-    plan_year     SMALLINT      NOT NULL COMMENT '计划年度',
-    plan_amount   DECIMAL(18,2) NOT NULL COMMENT '年度计划拨付额',
-    currency_code CHAR(3)       NOT NULL DEFAULT 'CNY' COMMENT '币种',
-    remark        VARCHAR(200)  NULL     COMMENT '备注',
+    project_id    BIGINT        NOT NULL                COMMENT '所属项目',
+    plan_year     SMALLINT      NOT NULL                COMMENT '计划年度，如 2024',
+    plan_amount   DECIMAL(18,2) NOT NULL                COMMENT '年度计划金额（元）',
+    currency_code CHAR(3)       NOT NULL DEFAULT 'CNY'  COMMENT '币种',
+    approved_date DATE          NULL                    COMMENT '计划批复日期',
+    remark        VARCHAR(200)  NULL                    COMMENT '备注',
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
     PRIMARY KEY (plan_id),
     UNIQUE KEY uk_plan_project_year (project_id, plan_year),
     CONSTRAINT fk_plan_project FOREIGN KEY (project_id) REFERENCES t_project (project_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT ck_plan_amount CHECK (plan_amount > 0),
-    CONSTRAINT ck_plan_year CHECK (plan_year BETWEEN 2013 AND 2100)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='年度资金计划：同项目同年度唯一（唯一约束挡住重复计划）';
+    CONSTRAINT ck_plan_year CHECK (plan_year BETWEEN 2000 AND 2100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='年度资金计划（M4）：到位率的分母，同项目同年度唯一';
 
 -- 15. 资金拨付：实际发生额（字段按 B-1 字段需求）
 CREATE TABLE t_fund_disbursement (
     disb_id       BIGINT        NOT NULL AUTO_INCREMENT COMMENT '拨付主键',
-    project_id    BIGINT        NOT NULL COMMENT '项目',
-    source_id     INT           NOT NULL COMMENT '资金来源',
-    plan_id       BIGINT        NULL     COMMENT '对应年度计划，可为空（计划外拨付）',
-    disb_date     DATE          NOT NULL COMMENT '拨付日期',
-    disb_amount   DECIMAL(18,2) NOT NULL COMMENT '拨付金额',
-    currency_code CHAR(3)       NOT NULL COMMENT '币种',
-    purpose       VARCHAR(200)  NULL     COMMENT '用途说明',
+    project_id    BIGINT        NOT NULL                COMMENT '所属项目',
+    source_id     BIGINT        NOT NULL                COMMENT '资金来源',
+    plan_id       BIGINT        NULL                    COMMENT '对应年度计划（可空＝计划外拨付）',
+    disb_date     DATE          NOT NULL                COMMENT '拨付日期',
+    disb_amount   DECIMAL(18,2) NOT NULL                COMMENT '拨付金额（元）',
+    currency_code CHAR(3)       NOT NULL DEFAULT 'CNY'  COMMENT '币种',
+    purpose       VARCHAR(200)  NULL                    COMMENT '用途：设备采购/土建/征地拆迁/人员费',
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
     PRIMARY KEY (disb_id),
     KEY idx_disb_project (project_id),
     KEY idx_disb_date (disb_date),
@@ -366,7 +370,7 @@ CREATE TABLE t_fund_disbursement (
     CONSTRAINT fk_disb_plan FOREIGN KEY (plan_id) REFERENCES t_fund_plan (plan_id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT ck_disb_amount CHECK (disb_amount > 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='资金拨付：到位率 = 实拨/计划的分子';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='资金拨付流水（M4）：到位率的分子';
 
 -- =====================================================================
 -- M5 进度里程碑（C）：里程碑字典 + 项目里程碑（生成列自动判超期）
@@ -416,16 +420,18 @@ CREATE TABLE t_project_milestone (
 -- 18. 进度报告：同项目同报告期唯一（唯一约束挡住重复报工）
 CREATE TABLE t_progress_report (
     report_id      BIGINT        NOT NULL AUTO_INCREMENT COMMENT '报告主键',
-    project_id     BIGINT        NOT NULL COMMENT '项目',
-    period_ym      CHAR(7)       NOT NULL COMMENT '报告期，格式 yyyy-MM，如 2024-05',
-    progress_pct   DECIMAL(5,2)  NOT NULL COMMENT '累计进度百分比 0-100',
-    output_value   DECIMAL(18,2) NULL     COMMENT '本期完成产值',
-    on_site_staff  INT           NOT NULL DEFAULT 0 COMMENT '现场人员总数',
-    local_staff    INT           NOT NULL DEFAULT 0 COMMENT '属地员工数',
-    safety_events  INT           NOT NULL DEFAULT 0 COMMENT '安全事件数',
-    quality_events INT           NOT NULL DEFAULT 0 COMMENT '质量事件数',
-    report_date    DATE          NULL     COMMENT '填报日期',
-    remark         VARCHAR(300)  NULL     COMMENT '备注',
+    project_id     BIGINT        NOT NULL                COMMENT '所属项目',
+    period_ym      CHAR(7)       NOT NULL                COMMENT '报告期 YYYY-MM',
+    progress_pct   DECIMAL(5,2)  NOT NULL                COMMENT '形象进度百分比 0~100',
+    on_site_staff  INT           NOT NULL DEFAULT 0      COMMENT '现场用工人数',
+    local_staff    INT           NOT NULL DEFAULT 0      COMMENT '其中属地员工人数',
+    output_value   DECIMAL(18,2) NOT NULL DEFAULT 0      COMMENT '本期完成产值（元）',
+    safety_events  INT           NOT NULL DEFAULT 0      COMMENT '安全事件数（M6 界面“事件数”）',
+    quality_events INT           NOT NULL DEFAULT 0      COMMENT '质量事件数（M6 界面“事件数”）',
+    report_date    DATE          NULL                    COMMENT '填报日期',
+    reporter       VARCHAR(50)   NULL                    COMMENT '填报人',
+    remark         VARCHAR(200)  NULL                    COMMENT '备注',
+    created_at     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
     PRIMARY KEY (report_id),
     UNIQUE KEY uk_report_project_period (project_id, period_ym),
     KEY idx_report_period (period_ym),
@@ -433,21 +439,24 @@ CREATE TABLE t_progress_report (
     CONSTRAINT fk_report_project FOREIGN KEY (project_id) REFERENCES t_project (project_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT ck_report_progress CHECK (progress_pct >= 0 AND progress_pct <= 100),
-    CONSTRAINT ck_report_staff CHECK (on_site_staff >= 0 AND local_staff >= 0
-        AND local_staff <= on_site_staff),
+    CONSTRAINT ck_report_staff CHECK (on_site_staff >= 0 AND local_staff >= 0),
+    CONSTRAINT ck_report_local CHECK (local_staff <= on_site_staff),
+    CONSTRAINT ck_report_output CHECK (output_value >= 0),
     CONSTRAINT ck_report_period CHECK (period_ym LIKE '____-__')
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='进度报告：环比（LAG）与停滞判断的数据源';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='项目履约进度月报（M6）：同项目同月唯一，挡住重复报工';
 
 -- 19. 报告指标：一条报告挂多个指标（多值事实的 EAV 表）
 CREATE TABLE t_report_indicator (
     report_id      BIGINT        NOT NULL COMMENT '所属报告',
-    indicator_code VARCHAR(30)   NOT NULL COMMENT '指标编码：TRAINING=培训人次、LOCAL_HIRE=属地用工比例、GREEN_MW=绿色装机、SAFETY、QUALITY',
-    indicator_val  DECIMAL(18,2) NOT NULL COMMENT '指标值',
+    indicator_code VARCHAR(20)   NOT NULL COMMENT '指标编码：TRAINING 培训人次 / LOCAL_SUPPLY 本地采购额',
+    indicator_val  DECIMAL(18,2) NOT NULL COMMENT '本期指标值（增量，不是累计）',
+    unit           VARCHAR(10)   NULL     COMMENT '单位：人次/万元/工时',
     PRIMARY KEY (report_id, indicator_code),
+    KEY idx_indicator_code (indicator_code),
     CONSTRAINT fk_ri_report FOREIGN KEY (report_id) REFERENCES t_progress_report (report_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT ck_ri_code CHECK (indicator_code IN ('TRAINING', 'LOCAL_HIRE', 'GREEN_MW', 'SAFETY', 'QUALITY'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='报告多值指标：M7 培训承诺的实际值来源';
+    CONSTRAINT ck_ri_val CHECK (indicator_val >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='月报多值指标（M6，EAV）：M7 培训承诺的实际值来源';
 
 -- =====================================================================
 -- M7 履约承诺比对（C）：承诺 + 比对结果
@@ -498,49 +507,52 @@ CREATE TABLE t_commitment_result (
 
 -- 22. 预警规则：阈值、级别、是否启用都做成数据
 CREATE TABLE t_warning_rule (
-    rule_id         INT          NOT NULL AUTO_INCREMENT COMMENT '规则主键',
-    rule_code       VARCHAR(20)  NOT NULL COMMENT '规则编码：F1/F2/F3',
-    rule_name       VARCHAR(100) NOT NULL COMMENT '规则名称，如 资金到位率低且进度滞后',
-    level_code      VARCHAR(10)  NOT NULL COMMENT '级别：RED/YELLOW/BLUE',
-    fund_rate_op    VARCHAR(2)   NULL     COMMENT '资金到位率比较符，为空表示该条件不启用',
-    fund_rate_value DECIMAL(5,2) NULL     COMMENT '资金到位率阈值',
-    progress_op     VARCHAR(2)   NULL     COMMENT '进度比较符，为空表示该条件不启用',
-    progress_value  DECIMAL(5,2) NULL     COMMENT '进度阈值',
-    overdue_min     INT          NULL     COMMENT '超期里程碑数量阈值，为空表示该条件不启用',
-    enabled         TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用：1=是，0=否',
-    description     VARCHAR(300) NULL     COMMENT '规则说明，界面点规则看阈值',
+    rule_id      BIGINT        NOT NULL AUTO_INCREMENT COMMENT '规则主键',
+    rule_code    VARCHAR(20)   NOT NULL                COMMENT '规则编码 F1/F2/F3/F4',
+    rule_name    VARCHAR(60)   NOT NULL                COMMENT '规则名称，如 资金断档',
+    level_code   CHAR(1)       NOT NULL                COMMENT 'R 红灯 / Y 黄灯 / B 蓝灯',
+    cond1_metric VARCHAR(20)   NOT NULL                COMMENT '条件1指标：FUND_RATE/PROGRESS_PCT/OVERDUE_COUNT/LOCAL_HIRE_RATE',
+    cond1_op     VARCHAR(4)    NOT NULL                COMMENT '条件1比较符：LT/LE/GT/GE/EQ',
+    cond1_value  DECIMAL(10,2) NOT NULL                COMMENT '条件1阈值',
+    cond2_metric VARCHAR(20)   NULL                    COMMENT '条件2指标（可空）',
+    cond2_op     VARCHAR(4)    NULL                    COMMENT '条件2比较符（可空）',
+    cond2_value  DECIMAL(10,2) NULL                    COMMENT '条件2阈值（可空）',
+    is_enabled   TINYINT       NOT NULL DEFAULT 1      COMMENT '是否启用 1/0',
+    message_tpl  VARCHAR(200)  NOT NULL                COMMENT '预警说明模板，{v1}/{v2} 替换为实际值',
+    updated_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
     PRIMARY KEY (rule_id),
     UNIQUE KEY uk_rule_code (rule_code),
-    CONSTRAINT ck_rule_level CHECK (level_code IN ('RED', 'YELLOW', 'BLUE')),
-    CONSTRAINT ck_rule_enabled CHECK (enabled IN (0, 1)),
-    CONSTRAINT ck_rule_fund_op CHECK (fund_rate_op IS NULL OR fund_rate_op IN ('<', '<=', '>', '>=', '=')),
-    CONSTRAINT ck_rule_progress_op CHECK (progress_op IS NULL OR progress_op IN ('<', '<=', '>', '>=', '='))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='预警规则：改阈值后重跑刷新，预警结果随之变化';
+    CONSTRAINT ck_rule_level CHECK (level_code IN ('R', 'Y', 'B')),
+    CONSTRAINT ck_rule_metric CHECK (cond1_metric IN ('FUND_RATE', 'PROGRESS_PCT', 'OVERDUE_COUNT', 'LOCAL_HIRE_RATE', 'REPORT_GAP_MONTH')),
+    CONSTRAINT ck_rule_op CHECK (cond1_op IN ('LT', 'LE', 'GT', 'GE', 'EQ'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='预警规则（M8）：阈值存在表里，改阈值不改代码';
 
 -- 23. 预警记录：规则+项目+状态唯一，保证 refreshWarnings 幂等
 CREATE TABLE t_warning (
-    warning_id   BIGINT        NOT NULL AUTO_INCREMENT COMMENT '预警主键',
-    rule_id      INT           NOT NULL COMMENT '触发规则',
-    project_id   BIGINT        NOT NULL COMMENT '项目',
-    level_code   VARCHAR(10)   NOT NULL COMMENT '级别：RED/YELLOW/BLUE',
-    metric_value DECIMAL(10,2) NULL     COMMENT '触发时的指标值',
-    message      VARCHAR(300)  NOT NULL COMMENT '预警说明，含规则名，便于答辩解释',
-    status_code  VARCHAR(10)   NOT NULL DEFAULT 'NEW' COMMENT '状态：NEW=未处理，ACK=已处理',
-    created_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '生成时间',
-    ack_at       DATETIME      NULL     COMMENT '处理时间',
-    ack_by       VARCHAR(50)   NULL     COMMENT '处理人',
-    PRIMARY KEY (warning_id),
-    UNIQUE KEY uk_warning_rule_project_status (rule_id, project_id, status_code),
+    warn_id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '预警主键',
+    rule_id          BIGINT       NOT NULL                COMMENT '触发规则',
+    project_id       BIGINT       NOT NULL                COMMENT '涉及项目',
+    period_ym        CHAR(7)      NOT NULL                COMMENT '预警期 YYYY-MM（取该项目最新报告期）',
+    warn_level       CHAR(1)      NOT NULL                COMMENT 'R/Y/B，刷新时按规则快照',
+    rule_name        VARCHAR(60)  NOT NULL                COMMENT '规则名称快照（规则改名不影响历史预警）',
+    trigger_snapshot VARCHAR(200) NULL                    COMMENT '触发时的指标值快照，如 到位率41.2%<60',
+    status           VARCHAR(8)   NOT NULL DEFAULT 'OPEN' COMMENT 'OPEN/ACK/CLOSED',
+    created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '首次触发时间',
+    ack_at           TIMESTAMP    NULL                    COMMENT '确认时间',
+    ack_by           VARCHAR(50)  NULL                    COMMENT '确认人',
+    updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后刷新时间',
+    PRIMARY KEY (warn_id),
+    UNIQUE KEY uk_warning_rule_project_period (rule_id, project_id, period_ym),
+    KEY idx_warning_level (warn_level),
+    KEY idx_warning_status (status),
     KEY idx_warning_project (project_id),
-    KEY idx_warning_level (level_code),
-    KEY idx_warning_created (created_at),
     CONSTRAINT fk_warning_rule FOREIGN KEY (rule_id) REFERENCES t_warning_rule (rule_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_warning_project FOREIGN KEY (project_id) REFERENCES t_project (project_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT ck_warning_level CHECK (level_code IN ('RED', 'YELLOW', 'BLUE')),
-    CONSTRAINT ck_warning_status CHECK (status_code IN ('NEW', 'ACK'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='预警记录：同一规则同一项目同一状态只能有一条，重复刷新不会重复插入';
+    CONSTRAINT ck_warning_level CHECK (warn_level IN ('R', 'Y', 'B')),
+    CONSTRAINT ck_warning_status CHECK (status IN ('OPEN', 'ACK', 'CLOSED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='预警实例（M8）：按 规则+项目+预警期 唯一，刷新幂等';
 
 -- =====================================================================
 -- M9 成果展示（C）：项目成效，与项目 1:1

@@ -7,10 +7,11 @@
 | `01_schema.sql` | 建库 + **24 张表** + 主键/外键/唯一/检查约束 + 索引（含 M5 生成列） | A | ✅ 已提交（第 2 周，G1 闸口） |
 | `02_dict_and_user.sql` | 字典 10 类 46 条 + 5 个演示用户（口令 SHA-256） | A | ✅ 已提交 |
 | `03_seed_basic.sql` | 区域 21 / 国家 61 / 企业 35 / 联合体 5 + 成员 14 / 项目 40 / 合同 80 / 参与记录 100 / 状态轨迹 101 | A | ✅ 已提交 |
-| `04_seed_business.sql` | 资金/预警（B 段）+ 里程碑/承诺/成效（C 段） | B、C | 待提交 |
-| `05_views_fund.sql` | 视图 `v_fund_rate`、`v_fund_progress` | B | 待提交 |
+| `04_seed_business.sql` | B 段：来源 9 / 年度计划 120 / 拨付 240 / 月报 240 / 指标 480 / 规则 5（C 段追加在文件末尾） | B | ✅ 已并入（B 提交，A 合并） |
+| `05_views_fund.sql` | 视图 `v_fund_rate`、`v_fund_progress` | B | ✅ 已并入 |
 | `06_views_commitment.sql` | 视图 `v_commitment_actual` | C | 待提交 |
-| `99_verify.sql` | 验收自检 SQL（每人往自己段落追加，A 汇总） | 全员 | 待提交 |
+| `99_verify_b.sql` | B 段验收自检 SQL（到位率/来源占比/年度对比/超计划/预警） | B | ✅ 已并入 |
+| `99_verify.sql` | 全员验收自检汇总（A 汇总，C/D 追加段落） | 全员 | 待提交 |
 
 > 视图单独成文件（05/06），是为了让 B、C 各改各的，不和 A 的 `01_schema.sql` 抢同一个文件。
 
@@ -34,10 +35,11 @@
 ## 3. 执行顺序（有外键依赖，不能乱）
 
 ```text
-01_schema.sql → 02_dict_and_user.sql → 03_seed_basic.sql → 04_seed_business.sql → 05_views_fund.sql → 06_views_commitment.sql → 99_verify.sql
+01_schema.sql → 02_dict_and_user.sql → 03_seed_basic.sql → 04_seed_business.sql
+→ 05_views_fund.sql → 99_verify_b.sql →（C 的 06_views_commitment.sql）→ 99_verify.sql
 ```
 
-三个初始化脚本都可重复执行（先删后插），演示用户见 `02_dict_and_user.sql` 末尾：`admin / planner / fund / field / viewer`，口令统一 `123456`。
+三个初始化脚本 + 04 都可重复执行（先删后插），演示用户见 `02_dict_and_user.sql` 末尾：`admin / planner / fund / field / viewer`，口令统一 `123456`。
 
 ## 4. 建库（库名必须与 `db.properties` 一致）
 
@@ -70,7 +72,7 @@ mysql> source D:/数据库三级项目/bri-pm/sql/01_schema.sql;
 一条命令跑完全部脚本（cmd）：
 
 ```bat
-for %f in (01_schema 02_dict_and_user 03_seed_basic 04_seed_business 05_views_fund 06_views_commitment 99_verify) do (
+for %f in (01_schema 02_dict_and_user 03_seed_basic 04_seed_business 05_views_fund 99_verify_b) do (
     mysql -uroot -p --default-character-set=utf8mb4 < sql\%f.sql
 )
 ```
@@ -88,4 +90,7 @@ for %f in (01_schema 02_dict_and_user 03_seed_basic 04_seed_business 05_views_fu
 5. 种子数据脚本要可重复执行：`DELETE FROM` 后 `INSERT`，或固定主键 + `INSERT ... ON DUPLICATE KEY UPDATE`；
 6. 字符集、时序、外键顺序由 A 统一合并，B/C 不各自建库、不改别人的段落；
 7. 数据真实性：项目名参考商务部公开信息与真实工程（蒙内铁路、雅万高铁、中老铁路、瓜达尔港、巴西美丽山特高压等），
-   文档中标注为“教学示例数据”。
+   文档中标注为“教学示例数据”；
+8. **金额单位统一为“元”**（`t_project.invest_amount`、`t_fund_plan.plan_amount`、`t_fund_disbursement.disb_amount`、
+   `t_progress_report.output_value` 都是元），报表显示时用 `TextUtil.formatAmount` 加千分位，不要混用“万元”。
+
