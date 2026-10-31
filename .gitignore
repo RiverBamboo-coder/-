@@ -1,0 +1,62 @@
+# =====================================================================
+# 三级项目仓库根目录 .gitignore
+# 目的：只提交“代码 + SQL + 文档”，不提交本机临时产物与个人备份
+# =====================================================================
+
+# ---- 我的工作目录（生成报告/PPT 的脚本、临时图片、文档备份）----
+_src/
+_gen/
+*.py.bak
+
+# ---- 根目录的生成脚本与合并备份（不属于工程本体）----
+/gen_report.py
+/gen_tasks.py
+_backup_*.sql
+
+# ---- 系统/工具产生的目录 ----
+.acl-recovery/
+.idea/
+.vscode/
+.settings/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.factorypath
+
+# ---- Maven / 构建产物 ----
+target/
+build/
+out/
+*.class
+*.jar
+!lib/*.jar
+
+# ---- 备份与临时文件 ----
+*.bak
+*.bak_*
+*.orig
+*.tmp
+*.log
+hs_err_pid*
+replay_pid*
+~$*
+
+# ---- Office / 系统缩略文件 ----
+~$*.doc
+~$*.docx
+~$*.pptx
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 本机覆盖配置（各人自己的数据库口令放这里，不进仓库）----
+config/
+db-local.properties
+
+# ---- 说明 ----
+# · bri-pm/src/main/resources/db.properties 是“全组共享的连接入口”，
+#   含本机演示口令（root/123456），课程项目保留在仓库里；
+#   换真实口令时改用 -Dbri.db.config=<外部文件> 覆盖，不要把真实口令提交。
+# · dev-env/ 是开发环境安装脚本，体积小、对组员有用，保留在仓库。
