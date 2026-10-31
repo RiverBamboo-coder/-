@@ -120,7 +120,27 @@ java -cp "target/classes;target/dependency/*" com.bri.modC.CSelfTest     # C 段
 
 ---
 
-## 5. 提交约定
+## 5. 上传到 GitHub 的清单（只传这 4 项）
+
+| # | 项目 | 说明 |
+| --- | --- | --- |
+| 1 | `bri-pm/` | 工程主体（代码 + SQL + 文档） |
+| 2 | `dev-env/` | 开发环境安装脚本 |
+| 3 | `.gitignore` | **根目录这一份（约 1.4 KB）**，含 `_src/`、`.acl-recovery/`、`gen_*.py`、`_backup_*.sql` 的排除规则 |
+| 4 | `README.md` | 本文件（仓库总说明） |
+
+**不要上传**：`_src/`（约 1.2 GB 的文档备份与生成脚本）、`.acl-recovery/`、`gen_report.py`、
+`gen_tasks.py`、`_backup_01_schema_before_b_merge.sql`。
+
+> ⚠️ **两个 `.gitignore` 别搞混**：
+> - 根目录 `.gitignore`（≈1.4 KB）＝ 仓库级排除，**必须上传**，否则 `git add .` 会把 `_src/` 一起提交；
+> - `bri-pm/.gitignore`（366 B）＝ 工程内部排除，只写 Maven/IDE 规则，**保持原样**，不要拿它覆盖根目录那份。
+
+> ⚠️ 网页拖拽上传**不读 `.gitignore`**；要它生效请用 `git add .`（命令行），或手动只选上面 4 项。
+
+---
+
+## 6. 提交约定
 
 - **不要**提交 `target/`、`.idea/`、`*.class`、`_src/`、`*.bak`（`.gitignore` 已排除）；
 - 解压他人压缩包时注意剔除带 `(2)` 的重复副本，否则 Maven 会报“类重复”；
