@@ -215,6 +215,10 @@ ProjectVO detail = projectDao.findById(1L);
 Result<Long> r = projectDao.insert(vo);       // 失败时 r.getMessage() 就是中文提示
 List<StatRow> cross = projectDao.statByFieldAndStatus();   // Q2-1（code="TRANS|在建"）
 List<GapRow> gaps = projectDao.findContractGapProjects();  // Q2-2（示例数据里有 5 个不一致）
+List<StatRow> yearly = projectDao.statNewProjectsByYear();          // Q2-3 年度新签趋势（code/label=年份）
+List<OverdueProjectRow> late = projectDao.findOverdueNotTransferred(); // Q2-4 逾期未移交（带逾期天数）
+List<StatusLogRow> logs = projectDao.findStatusLogs(1L);            // Q2-5 某项目状态轨迹（正序）
+List<StatusLogRow> logPage = projectDao.findStatusLogs(Page.of(1, 20, "change_date DESC")); // Q2-5 全局分页
 List<ContractVO> contracts = new ContractDao().findByProject(1L);
 
 // M3 企业
@@ -223,6 +227,9 @@ List<EnterpriseVO> ents = enterpriseDao.findAll(Page.of(1, 50, "project_count DE
 List<ProjectRoleVO> roles = enterpriseDao.findProjectsByEnterprise(1L);
 List<RankRow> top = enterpriseDao.statEnterpriseRanking(10);   // Q3-1
 List<ShareRow> shares = enterpriseDao.statConsortiumShare();    // Q3-4
+List<FieldTopEnterpriseRow> champs = enterpriseDao.statTopEnterpriseByField();      // Q3-2 各领域冠军
+List<DualRoleProjectRow> dual = enterpriseDao.findProjectsWithBothRoles();          // Q3-3 总包+分包并存
+List<ContinentSpreadRow> global3 = enterpriseDao.statEnterprisesAcrossContinents(3); // Q3-5 跨 3 洲以上
 
 // M0 字典（下拉框）
 List<DictItem> statuses = new DictDao().listByType("PROJECT_STATUS");

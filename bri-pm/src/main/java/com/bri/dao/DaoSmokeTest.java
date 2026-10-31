@@ -3,18 +3,23 @@ package com.bri.dao;
 import com.bri.common.DataAccessException;
 import com.bri.common.Page;
 import com.bri.vo.CountryVO;
+import com.bri.vo.ContinentSpreadRow;
 import com.bri.vo.DictItem;
+import com.bri.vo.DualRoleProjectRow;
 import com.bri.vo.EnterpriseVO;
+import com.bri.vo.FieldTopEnterpriseRow;
 import com.bri.vo.GapRow;
 import com.bri.vo.MetaColumnVO;
 import com.bri.vo.MetaConstraintVO;
 import com.bri.vo.MetaTableVO;
+import com.bri.vo.OverdueProjectRow;
 import com.bri.vo.ProjectQuery;
 import com.bri.vo.ProjectRoleVO;
 import com.bri.vo.ProjectVO;
 import com.bri.vo.RankRow;
 import com.bri.vo.ShareRow;
 import com.bri.vo.StatRow;
+import com.bri.vo.StatusLogRow;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -113,6 +118,56 @@ public final class DaoSmokeTest {
             for (ShareRow row : enterpriseDao.statConsortiumShare()) {
                 System.out.printf("        %-20s 牵头 %-16s 成员 %d 人，份额合计 %s%n",
                         row.getConsortiumName(), row.getLeaderName(), row.getMemberCount(), row.getShareSum());
+            }
+
+            // ---------- 本轮补齐的 6 个查询（Q2-3/Q2-4/Q2-5/Q3-2/Q3-3/Q3-5）----------
+            System.out.println();
+            System.out.println("[补齐] Q2-3 statNewProjectsByYear（按签约年份）：");
+            for (StatRow y : projectDao.statNewProjectsByYear()) {
+                System.out.printf("        %-8s 新签 %2d 个，投资 %s%n",
+                        y.getLabel(), y.getCnt(), y.getTotal());
+            }
+
+            List<OverdueProjectRow> overdue = projectDao.findOverdueNotTransferred();
+            System.out.printf("[补齐] Q2-4 findOverdueNotTransferred       -> %d 个逾期未移交项目%n", overdue.size());
+            for (int i = 0; i < Math.min(3, overdue.size()); i++) {
+                OverdueProjectRow o = overdue.get(i);
+                System.out.printf("        %-8s %-6s 计划 %s，逾期 %d 天%n",
+                        o.getProjectCode(), o.getStatus(), o.getPlannedEndDate(), o.getOverdueDays());
+            }
+
+            List<StatusLogRow> logs1 = projectDao.findStatusLogs(1L);
+            System.out.printf("[补齐] Q2-5 findStatusLogs(1)               -> %d 条轨迹%n", logs1.size());
+            for (StatusLogRow lg : logs1) {
+                System.out.printf("        %s  %s → %s（%s）%n",
+                        lg.getChangeDate(), lg.getFromStatus(), lg.getToStatus(), lg.getOperator());
+            }
+            List<StatusLogRow> logsPage = projectDao.findStatusLogs(Page.of(1, 3, "change_date DESC"));
+            System.out.printf("[补齐] Q2-5 findStatusLogs(分页,排序)       -> 本页 %d 条 / 首条 %s%n",
+                    logsPage.size(),
+                    logsPage.isEmpty() ? "-" : logsPage.get(0).getProjectCode()
+                            + " " + logsPage.get(0).getToStatus());
+
+            System.out.println("[补齐] Q3-2 statTopEnterpriseByField（各领域冠军）：");
+            for (FieldTopEnterpriseRow f : enterpriseDao.statTopEnterpriseByField()) {
+                System.out.printf("        %-12s %-24s 项目 %2d 个，投资 %s%n",
+                        f.getFieldName(), f.getEnterpriseName(), f.getProjectCount(), f.getTotalInvest());
+            }
+
+            List<DualRoleProjectRow> dual = enterpriseDao.findProjectsWithBothRoles();
+            System.out.printf("[补齐] Q3-3 findProjectsWithBothRoles       -> %d 个项目总包与分包并存%n", dual.size());
+            for (int i = 0; i < Math.min(3, dual.size()); i++) {
+                DualRoleProjectRow d = dual.get(i);
+                System.out.printf("        %-8s 总包 %d 家 / 分包 %d 家 / 参与 %d 家%n",
+                        d.getProjectCode(), d.getZcCount(), d.getFbCount(), d.getParticipantCount());
+            }
+
+            List<ContinentSpreadRow> spread = enterpriseDao.statEnterprisesAcrossContinents(3);
+            System.out.printf("[补齐] Q3-5 statEnterprisesAcrossContinents(3) -> %d 家跨 3 洲以上%n", spread.size());
+            for (ContinentSpreadRow c : spread) {
+                System.out.printf("        %-24s %d 洲 %d 国 %d 项目（%s）%n",
+                        c.getEnterpriseName(), c.getContinentCount(), c.getCountryCount(),
+                        c.getProjectCount(), c.getContinentNames());
             }
 
             // ---------- M0 字典 ----------

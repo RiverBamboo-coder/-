@@ -3,7 +3,10 @@ package com.bri.dao;
 import com.bri.common.DataAccessException;
 import com.bri.common.DbUtil;
 import com.bri.common.Page;
+import com.bri.vo.ContinentSpreadRow;
+import com.bri.vo.DualRoleProjectRow;
 import com.bri.vo.EnterpriseVO;
+import com.bri.vo.FieldTopEnterpriseRow;
 import com.bri.vo.ProjectRoleVO;
 import com.bri.vo.RankRow;
 import com.bri.vo.ShareRow;
@@ -185,6 +188,149 @@ public class EnterpriseDao {
             }
         } catch (SQLException e) {
             throw new DataAccessException("联合体份额统计失败：" + e.getMessage(), e);
+        }
+        return list;
+    }
+
+    // ------------------------------------------------------------------
+    // Q3-2 / Q3-3 / Q3-5（本轮补齐：领域冠军企业、总包+分包并存、跨洲布局）
+    // ------------------------------------------------------------------
+
+    /**
+     * Q3-2：每个领域承接项目最多的企业（每个领域只返回冠军一行）。
+     *
+     * <p>用窗口函数 {@code ROW_NUMBER() OVER (PARTITION BY field_code ORDER BY 项目数 DESC)}
+     * 取 rn = 1：比“先查最大值再回查”少一次往返，并列时也只取一家（按企业编号升序兜底，
+     * 保证结果稳定可复现）。</p>
+     *
+     * @return 各领域的冠军企业，按项目数降序
+     */
+    public List<FieldTopEnterpriseRow> statTopEnterpriseByField() {
+        String sql = "SELECT field_code, field_name, enterprise_id, enterprise_name,"
+                + "       project_cnt, total_invest"
+                + " FROM ("
+                + "   SELECT p.field_code,"
+                + "          COALESCE(d.item_name, p.field_code) AS field_name,"
+                + "          e.enterprise_id, e.enterprise_name,"
+                + "          COUNT(DISTINCT p.project_id) AS project_cnt,"
+                + "          COALESCE(SUM(p.invest_amount), 0) AS total_invest,"
+                + "          ROW_NUMBER() OVER (PARTITION BY p.field_code"
+                + "                             ORDER BY COUNT(DISTINCT p.project_id) DESC,"
+                + "                                      e.enterprise_id) AS rn"
+                + "   FROM t_project p"
+                + "   JOIN t_project_participant pp ON pp.project_id = p.project_id"
+                + "   JOIN t_enterprise e ON e.enterprise_id = pp.enterprise_id"
+                + "   LEFT JOIN t_dict_item d ON d.dict_type_id = 1 AND d.item_code = p.field_code"
+                + "   GROUP BY p.field_code, d.item_name, e.enterprise_id, e.enterprise_name"
+                + " ) t"
+                + " WHERE rn = 1"
+                + " ORDER BY project_cnt DESC, field_code";
+        List<FieldTopEnterpriseRow> list = new ArrayList<>();
+        try (Connection conn = DbUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                FieldTopEnterpriseRow row = new FieldTopEnterpriseRow();
+                row.setFieldCode(rs.getString("field_code"));
+                row.setFieldName(rs.getString("field_name"));
+                row.setEnterpriseId(rs.getLong("enterprise_id"));
+                row.setEnterpriseName(rs.getString("enterprise_name"));
+                row.setProjectCount(rs.getLong("project_cnt"));
+                row.setTotalInvest(rs.getBigDecimal("total_invest"));
+                list.add(row);
+            }
+        } catch (SQLException e) {
+            throw new DataAccessException("统计各领域冠军企业失败：" + e.getMessage(), e);
+        }
+        return list;
+    }
+
+    /**
+     * Q3-3：项目中既存在总承包（ZC）又存在分包（FB）的，用于核对“总包—分包”链条是否完整。
+     *
+     * <p>用条件聚合 {@code SUM(CASE WHEN role_code = 'ZC' ...)} 在一条 SQL 里同时统计两种角色，
+     * 避免自连接两次；{@code HAVING} 同时要求两种角色都 > 0。</p>
+     *
+     * @return 两种角色并存的项目，按总包数降序
+     */
+    public List<DualRoleProjectRow> findProjectsWithBothRoles() {
+        String sql = "SELECT p.project_id, p.project_code, p.project_name,"
+                + "       COUNT(DISTINCT CASE WHEN pp.role_code = 'ZC' THEN pp.enterprise_id END) AS zc_cnt,"
+                + "       COUNT(DISTINCT CASE WHEN pp.role_code = 'FB' THEN pp.enterprise_id END) AS fb_cnt,"
+                + "       COUNT(DISTINCT pp.enterprise_id) AS participant_cnt"
+                + " FROM t_project p"
+                + " JOIN t_project_participant pp ON pp.project_id = p.project_id"
+                + " GROUP BY p.project_id, p.project_code, p.project_name"
+                + " HAVING zc_cnt > 0 AND fb_cnt > 0"
+                + " ORDER BY zc_cnt DESC, fb_cnt DESC, p.project_code";
+        List<DualRoleProjectRow> list = new ArrayList<>();
+        try (Connection conn = DbUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                DualRoleProjectRow row = new DualRoleProjectRow();
+                row.setProjectId(rs.getLong("project_id"));
+                row.setProjectCode(rs.getString("project_code"));
+                row.setProjectName(rs.getString("project_name"));
+                row.setZcCount(rs.getLong("zc_cnt"));
+                row.setFbCount(rs.getLong("fb_cnt"));
+                row.setParticipantCount(rs.getLong("participant_cnt"));
+                list.add(row);
+            }
+        } catch (SQLException e) {
+            throw new DataAccessException("查询总包与分包并存项目失败：" + e.getMessage(), e);
+        }
+        return list;
+    }
+
+    /**
+     * Q3-5：在至少 N 个“洲”都有参与项目的企业（全球化布局）。
+     *
+     * <p>国家的 region 可能挂在二级区域下，故用
+     * {@code COALESCE(二级.parent_id, 二级.region_id)} 上卷到一级（洲）；
+     * {@code COUNT(DISTINCT 洲)} 保证同一洲的多个国家不重复计数。</p>
+     *
+     * @param minContinents 最少洲数（如 3）
+     * @return 满足条件的企业，按洲数、国家数降序
+     */
+    public List<ContinentSpreadRow> statEnterprisesAcrossContinents(int minContinents) {
+        String sql = "SELECT e.enterprise_id, e.enterprise_name,"
+                + "       COALESCE(dn.item_name, e.nature_code) AS nature_name,"
+                + "       COUNT(DISTINCT COALESCE(r1.region_id, r2.region_id)) AS continent_cnt,"
+                + "       COUNT(DISTINCT c.country_code) AS country_cnt,"
+                + "       COUNT(DISTINCT pp.project_id) AS project_cnt,"
+                + "       GROUP_CONCAT(DISTINCT COALESCE(r1.region_name, r2.region_name)"
+                + "                    ORDER BY COALESCE(r1.region_name, r2.region_name)"
+                + "                    SEPARATOR '、') AS continent_names"
+                + " FROM t_enterprise e"
+                + " JOIN t_project_participant pp ON pp.enterprise_id = e.enterprise_id"
+                + " JOIN t_project p ON p.project_id = pp.project_id"
+                + " JOIN t_country c ON c.country_code = p.country_code"
+                + " JOIN t_region r2 ON r2.region_id = c.region_id"
+                + " LEFT JOIN t_region r1 ON r1.region_id = r2.parent_id"
+                + " LEFT JOIN t_dict_item dn ON dn.dict_type_id = 4 AND dn.item_code = e.nature_code"
+                + " GROUP BY e.enterprise_id, e.enterprise_name, dn.item_name, e.nature_code"
+                + " HAVING continent_cnt >= ?"
+                + " ORDER BY continent_cnt DESC, country_cnt DESC, project_cnt DESC";
+        List<ContinentSpreadRow> list = new ArrayList<>();
+        try (Connection conn = DbUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, minContinents);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ContinentSpreadRow row = new ContinentSpreadRow();
+                    row.setEnterpriseId(rs.getLong("enterprise_id"));
+                    row.setEnterpriseName(rs.getString("enterprise_name"));
+                    row.setNatureName(rs.getString("nature_name"));
+                    row.setContinentCount(rs.getLong("continent_cnt"));
+                    row.setCountryCount(rs.getLong("country_cnt"));
+                    row.setProjectCount(rs.getLong("project_cnt"));
+                    row.setContinentNames(rs.getString("continent_names"));
+                    list.add(row);
+                }
+            }
+        } catch (SQLException e) {
+            throw new DataAccessException("统计跨洲布局企业失败：" + e.getMessage(), e);
         }
         return list;
     }
